@@ -1,15 +1,8 @@
 (ns aoc2018.day1
-  (:require
-    [clojure.string :as string]))
-
-; FIXME: slurp로 한번 만들어 보자. 완료
-
-(defn read-file [file-name]
-  (->> (slurp file-name)
-       string/split-lines))
+  (:require [common.common :as common]))
 
 (def input
-  (->> (read-file "day1_input.txt")
+  (->> (common/read-file "src/aoc2018/day1_input.txt")
        (map #(Integer/parseInt %))))
 
 ; Part One
@@ -23,19 +16,24 @@
 (defn part2-loop [input]
   (loop [history #{}
          before 0
-         inputs (seq input)]
+         inputs input]
     (let [sum (+ before (first inputs))]
-      (if (not (history sum))
-        (recur (conj history sum) sum (if (nil? (next inputs)) input (next inputs)))
+      (if (history sum)
         sum
-        ))))
+        (recur (conj history sum)
+               sum
+               (or (next inputs) input))))))
 
 ; Part Two - reduce
 
 (defn part2-reduce [input]
-  (reduce (fn [history currentSum]
-            (if (history currentSum)
-              (reduced currentSum)
-              (conj history currentSum)))
+  (reduce (fn [history current-sum]
+            (if (history current-sum)
+              (reduced current-sum)
+              (conj history current-sum)))
           #{}
           (reductions + (cycle input))))
+
+(comment
+  (part2-loop input)
+  (part2-reduce input))
