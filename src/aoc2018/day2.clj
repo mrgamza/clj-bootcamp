@@ -62,6 +62,7 @@
 ; Part Two
 
 (defn get-same-chars
+  "두가지 string에서 같은 부분의 chars를 return 한다."
   [str1 str2]
   (let [same? (map = str1 str2)]
     (->> (for [index (range (count str1))
