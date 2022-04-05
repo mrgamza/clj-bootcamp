@@ -1,5 +1,6 @@
 (ns aoc2018.day2
-  (:require [common.common :as common]))
+  (:require [common.common :as common]
+            [clojure.string :as str]))
 
 (def input (common/read-file "src/aoc2018/day2_input.txt"))
 
@@ -63,30 +64,45 @@
 (defn get-same-chars
   "두가지 string에서 같은 부분의 chars를 return 한다."
   [str1 str2]
-  (when (= (count str1) (count str2))
-    (->> (range (count str1))
-         (reduce (fn [same index]
-                   (if (= (nth str1 index) (nth str2 index))
-                     (str same (nth str1 index))
-                     same
-                     ))
-                 ""))))
+  (let [same? (map = str1 str2)]
+    (->> (for [index (range (count str1))
+           :let [str (nth str1 index)
+                 same-str (nth same? index)]]
+           (when same-str str))
+         str/join)))
+
+(defn same-length-and-text-inc-length?
+  [length text]
+  (= length (inc (count text))))
 
 (defn part2
   "여러 개의 문자열 중, 같은 위치에 정확히 하나의 문자가 다른 문자열 쌍에서 같은 부분만을 리턴하시오."
   [input]
-  (->> (for [target-index (range (count input))
-             search-index (range (count input))
-             :let [target-str (nth input target-index)
-                   search-str (nth input search-index)]
-             :when (< target-index search-index)]
-         (get-same-chars target-str search-str))
-       (filter #(= (inc (count %)) (count (first input))))
-       first))
+  (let [input-string-length (count (first input))
+        filter-length-condition (partial same-length-and-text-inc-length? input-string-length)]
+    (->> (for [target-index (range (count input))
+               search-index (range (count input))
+               :let [target-str (nth input target-index)
+                     search-str (nth input search-index)]
+               :when (< target-index search-index)]
+           (get-same-chars target-str search-str))
+         (filter filter-length-condition)
+         first)))
 
 (comment
   (part2 ["abcd" "abcf" "bbbc" "bbbe"])
   (part2 input)
+  (get-same-chars-count "abxc" "abdc")
+  (get-same-chars "abxc" "abdc")
+  (reduce = ["test" "test"])
+  (not= (inc 1) 1)
+  (same-length? 3 "te")
+  ((partial same-length? 3) "te")
+  (map = "abcd" "abce")
+  ((zipmap "abcd" (map = "abcd" "abce")) "a")
+  (map = "abcd" [true true true true])
+  (map #(while((true? %) "aaa" "bbb")) (map = "abcd" "abce"))
+  (map-indexed vector (map = "abcd" "abce")))
   (get-same-chars "abxc" "abdc")
   (reduce = ["test" "test"])
   (not= (inc 1) 1))
