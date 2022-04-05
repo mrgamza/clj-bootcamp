@@ -7,7 +7,7 @@
        (re-matcher #"#(\d+) @ (\d+),(\d+): (\d+)x(\d+)")
        re-find))
 
-(defn map-line-to-array
+(defn line->seq
   "Input을 parsing하여 (id x y width height) 형태로 return 합니다."
   [input]
   (->> input
@@ -15,7 +15,7 @@
        rest
        (map #(Integer/parseInt %))))
 
-(defn map-array-to-hashmap
+(defn seq->hashmap
   "array의 형태를 hashmap으로 변환합니다. {:id :x :y :width :height}"
   [input]
   (->> input
@@ -25,12 +25,12 @@
 (def input-data
   (->> "src/aoc2018/day3_input.txt"
        common/read-file
-       (map map-line-to-array)
-       (map map-array-to-hashmap)))
+       (map line->seq)
+       (map seq->hashmap)))
 
 ; Part 1
 
-(defn map-hashmap-to-position
+(defn hashmap->positions
   "hashmap의 data를 position의 형태로 만들어서 return"
   [{:keys [x y w h]}]
   (for [x-position (range x (+ x w))
@@ -40,8 +40,9 @@
 (defn get-fabric-frequencies
   "fabric의 frequeicies를 구한다."
   [input-data]
+  (println "this")
   (->> input-data
-       (mapcat map-hashmap-to-position)
+       (mapcat hashmap->positions)
        frequencies))
 
 (defn get-overlap-count
@@ -60,10 +61,11 @@
        get-overlap-count))
 
 (comment
+  (input-data)
   (find-match "#1 @ 749,666: 27x15")
-  (map-line-to-array "#1 @ 749,666: 27x15")
-  (map-array-to-hashmap (map-line-to-array "#1 @ 749,666: 27x15"))
-  (map-hashmap-to-position (map-array-to-hashmap (map-line-to-array "#1 @ 749,666: 27x15"))))
+  (line->seq "#1 @ 749,666: 27x15")
+  (seq->hashmap (line->seq "#1 @ 749,666: 27x15"))
+  (hashmap->positions (seq->hashmap (line->seq "#1 @ 749,666: 27x15"))))
 
 (comment
   (solution1 input-data))
@@ -74,7 +76,7 @@
   "중복되지 않은 공간을 구한다."
   [once-list input-data]
   (->> input-data
-       map-hashmap-to-position
+       hashmap->positions
        (every? once-list)))
 
 (defn find-not-overlap-id
