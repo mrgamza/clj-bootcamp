@@ -103,3 +103,6 @@
   (map = "abcd" [true true true true])
   (map #(while((true? %) "aaa" "bbb")) (map = "abcd" "abce"))
   (map-indexed vector (map = "abcd" "abce")))
+  (get-same-chars "abxc" "abdc")
+  (reduce = ["test" "test"])
+  (not= (inc 1) 1))
