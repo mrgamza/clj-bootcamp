@@ -64,11 +64,11 @@
 (defn get-same-chars
   "두가지 string에서 같은 부분의 chars를 return 한다."
   [str1 str2]
-  (let [same? (map = str1 str2)]
+  (let [compare-strings (map = str1 str2)]
     (->> (for [index (range (count str1))
-           :let [str (nth str1 index)
-                 same-str (nth same? index)]]
-           (when same-str str))
+           :let [string (nth str1 index)
+                 same-string (nth compare-strings index)]]
+           (when same-string string))
          string/join)))
 
 (defn same-length-and-text-inc-length?

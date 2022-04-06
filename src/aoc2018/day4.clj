@@ -3,11 +3,15 @@
 
 ; File load 하는것에 대한 부분들
 
+(def action-str->keyword
+  {"falls asleep" :falls-asleep
+   "wakes up"     :wakes-up})
+
 (defn get-minute-action-id
   "행동에서 minute와 id를 가져온다."
-  [[_ _ _ _ minute action id]]
+  [[_ _ _ _ _ minute action id]]
   {:minute (Integer/parseInt minute)
-   :action action
+   :action (action-str->keyword action)
    :id (when-not (nil? id) (Integer/parseInt id))}) ; when-not !nil condition.
 
 (defn line->data
@@ -16,7 +20,6 @@
   (->> string
        (re-matcher #"\[(\d+)-(\d+)-(\d+) (\d+):(\d+)\] (wakes up|falls asleep|Guard #(\d+) begins shift)")
        re-find
-       rest
        get-minute-action-id))
 
 (defn read-file
@@ -59,8 +62,8 @@
    {:keys [minute action id]}]
   (cond
     id [sleep-times 0 id]
-    (= action "falls asleep") [sleep-times minute last-id]
-    (= action "wakes up") [(assoc sleep-times last-id (concat (sleep-times last-id) (range last-falls-asleep minute)))
+    (= action :falls-asleep) [sleep-times minute last-id]
+    (= action :wakes-up) [(assoc sleep-times last-id (concat (sleep-times last-id) (range last-falls-asleep minute)))
                            last-falls-asleep
                            last-id]))
 
@@ -71,15 +74,20 @@
   [data]
   (->> data
        (reduce data->sleep-times-reduce [{} 0 0]) ; [{1 [1 2 3 4 5 6 6 3 ...] 2 [1 2 3 3 3...]}, last-falls-asleep last-id]
-       first)) ; FIXME: first 말고 다르게 할수 있는 방법이 없을까?
+       first))
+
+(defn find-most-slept
+  [sleep-times]
+  (->> sleep-times
+       (sort-by #(count (val %)))
+       last))
 
 (defn part1
   "가장 많이 잔 id에서 빈도수가 제일 많은 minute를 구하고 id * minute를 하여준다."
   [data]
   (let [{:keys [id most-sleep-min]} (->> data
                                          data->sleep-times
-                                         (sort-by #(count (val %)))
-                                         last
+                                         find-most-slept
                                          get-most-sleep-min)]
     (* id (key most-sleep-min))))
 
@@ -101,6 +109,8 @@
   (part1 test-data)
   (part2 test-data)
   (part1 data)
-  (part2 data)
-  (when-not (nil? nil) "test")
-  )
+  (part2 data))
+
+(comment
+  (->> data)
+  (when-not (nil? nil) "test"))
