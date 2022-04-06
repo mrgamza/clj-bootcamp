@@ -40,7 +40,6 @@
 (defn get-fabric-frequencies
   "fabric의 frequeicies를 구한다."
   [input-data]
-  (println "this")
   (->> input-data
        (mapcat hashmap->positions)
        frequencies))
@@ -65,7 +64,10 @@
   (find-match "#1 @ 749,666: 27x15")
   (line->seq "#1 @ 749,666: 27x15")
   (seq->hashmap (line->seq "#1 @ 749,666: 27x15"))
-  (hashmap->positions (seq->hashmap (line->seq "#1 @ 749,666: 27x15"))))
+  (hashmap->positions (seq->hashmap (line->seq "#1 @ 749,666: 27x15")))
+  (->> input-data
+       (mapcat hashmap->positions)
+       frequencies))
 
 (comment
   (solution1 input-data))
