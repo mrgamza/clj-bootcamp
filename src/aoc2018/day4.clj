@@ -37,8 +37,7 @@
         most-sleep-min (->> (val minutes)
                             frequencies
                             (sort-by val)
-                            last
-                            key)]
+                            last)]
     [id most-sleep-min]))
 
 (defn reduce-sleep-times
@@ -53,34 +52,34 @@
 
 (defn part1
   [data]
-  (->> data
-       (map parse)
-       (reduce reduce-sleep-times [{} 0 0])
-       first
-       (sort-by #(count (val %)))
-       last
-       get-most-sleep-min
-       (apply *)))
+  (let [value (->> data
+                   (map parse)
+                   (reduce reduce-sleep-times [{} 0 0])
+                   first
+                   (sort-by #(count (val %)))
+                   last
+                   get-most-sleep-min)]
+    (apply * [(first value) (key (last value))])))
 
 ; Part 2
 
 (defn part2
   [data]
-  (let [most-sleep-mins (->> data
+  (let [most-sleep-min (->> data
                              (map parse)
                              (reduce reduce-sleep-times [{} 0 0])
                              first
                              (map #(get-most-sleep-min %))
-                             (sort-by #(last %))
+                             (sort-by #(val (last %)))
                              last)]
-    (apply * most-sleep-mins)))
+    (apply * [(first most-sleep-min) (key (last most-sleep-min))])))
 
 (comment
   (part1 data)
   (part2 data))
 
 (comment
-  (->> data
+  (test-data)
+  (->> test-data
        (sort-by #(last %)))
-  (apply * [2 4])
-  )
+  (apply * 2 4))
