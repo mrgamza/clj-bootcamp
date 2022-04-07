@@ -1,6 +1,6 @@
 (ns aoc2018.day2
   (:require [common.common :as common]
-            [clojure.string :as str]))
+            [clojure.string :as string]))
 
 (def input (common/read-file "src/aoc2018/day2_input.txt"))
 
@@ -64,12 +64,12 @@
 (defn get-same-chars
   "두가지 string에서 같은 부분의 chars를 return 한다."
   [str1 str2]
-  (let [same? (map = str1 str2)]
+  (let [compare-strings (map = str1 str2)]
     (->> (for [index (range (count str1))
-           :let [str (nth str1 index)
-                 same-str (nth same? index)]]
-           (when same-str str))
-         str/join)))
+           :let [string (nth str1 index)
+                 same-string (nth compare-strings index)]]
+           (when same-string string))
+         string/join)))
 
 (defn same-length-and-text-inc-length?
   [length text]
@@ -102,7 +102,7 @@
   ((zipmap "abcd" (map = "abcd" "abce")) "a")
   (map = "abcd" [true true true true])
   (map #(while((true? %) "aaa" "bbb")) (map = "abcd" "abce"))
-  (map-indexed vector (map = "abcd" "abce")))
+  (map-indexed vector (map = "abcd" "abce"))
   (get-same-chars "abxc" "abdc")
   (reduce = ["test" "test"])
   (not= (inc 1) 1))
