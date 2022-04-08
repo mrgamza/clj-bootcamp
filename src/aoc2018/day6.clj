@@ -20,7 +20,7 @@
   (->> file-name
        common/read-file
        (map line->point)
-       (map-indexed (fn [idx point] (assoc point :id idx))))) ; 편의를 위해 index를 넣어준다.
+       (map-indexed (fn [index point] (assoc point :id index))))) ; 편의를 위해 index를 넣어준다.
 
 (def data (->> "resources/aoc2018/day6_input.txt"
                read-file))
@@ -42,7 +42,8 @@
 ; Logic
 
 (defn get-boundary
-  "무한의 공간중에 목표가 되는 공간의 크기이다."
+  "무한의 공간중에 목표가 되는 공간의 크기이다.
+  이유는 가장 작고 큰 x, y의 좌표의 공간이 최적화된 공간이 되는것이다."
   [points]
   (let [xs (map :x points)
         ys (map :y points)]
@@ -67,38 +68,44 @@
        (= start-y y)
        (= end-y y)))
 
+; 참고 : https://needjarvis.tistory.com/455
 (defn manhattan-distance
   "두 지점의 Manhattan distance를 구한다."
   [point target]
   (+ (abs (- (:x point) (:x target)))
      (abs (- (:y point) (:y target)))))
 
-(defn get-distances-to-targets
+(defn distance->targets
   "Targets기준으로 point의 거리를 넣어준다."
   [targets point]
   (->> targets
        (map #(convert-id-distance (manhattan-distance point %) %)))) ; 못줄이나?
 
-(defn get-closest-target-ids
+(defn min-distance-ids
+  "bounded area를 순회하면서 target들과 비교하여 가장 가까운 위치의 target을 가져간다.
+  값에는 0, 1과 같이 여러개가 들어갈수 있다."
   [targets point]
-  (->> (get-distances-to-targets targets point)
+  (->> (distance->targets targets point)
        (group-by :distance)
        (apply min-key key)
        val
        (map :id)))
 
 (defn data->limit-areas
+  "target을 입력 받아서 확장을 진행하였을 경우에 더 넓어지지 못하는 최대 크기를 구하도록 한다."
   [targets]
   (let [boundary (get-boundary targets)
         points-in-bounded-area (get-points-in-bounded-area boundary)
-        point-in-boundary? (partial include-boundary-outside? boundary)]
+        has-remove-area? (partial include-boundary-outside? boundary)]
     (->> points-in-bounded-area
-         (map #(convert-id-point (get-closest-target-ids targets %) %)) ; 못주이나?
-         (filter #(= 1 (count (:id %))))
-         (group-by :id)
-         (map val)
-         (map #(map :point %))
-         (remove #(some point-in-boundary? %)))))
+         (map #(convert-id-point (min-distance-ids targets %) %)) ; 못줄이나?
+         (filter #(= 1 (count (:id %)))) ; 1보다 큰것은 두가지 포지션이 함께 차지할수 있는 공간이므로 제외한다.
+         (group-by :id) ; id별로 차지할수 있는 공간을 묶어준다.
+         (map val) ; id는 이제 필요 없으므로 position 값들만 필요하다.
+         #_(common/debug "before")
+         (map #(map :point %)) ; out map [{:id :point}], in map {:id :point} hash에서 point 카운트만 구할것이다.
+         (common/debug "after")
+         (remove #(some has-remove-area? %))))) ; %는 ({:X :y} ...) 이것을 이용해서 bounded area의 가장자리의 값을 가진지 판단한다. 가질 경우에는 삭제한다.
 
 (defn max-limit-area
   [areas]
@@ -106,13 +113,17 @@
        (map #(count %))
        (apply max)))
 
-; Part1
+; Solution
 
 (defn part1
   [data]
   (->> data
        data->limit-areas
        max-limit-area))
+
+(defn part2
+  [data]
+  (->> data))
 
 (comment
   (part1 test-data)
@@ -125,4 +136,16 @@
   (->> test-data
        (map-indexed (fn [id point] (assoc point :id id))))
   (->> [{:id 0, :point {:x 1, :y 1}} {:id 0, :point {:x 1, :y 2}}]
-       (map (fn [value] (map :point value)))))
+       (map (fn [value] (map :point value))))
+  (->> (manhattan-distance {:x 1 :y 1} {:x 2 :y 3}))
+  (apply min-key [1 2 3 4])
+  (->> '({:id 0, :distance 15} {:id 1, :distance 10} {:id 2, :distance 6} {:id 3, :distance 10} {:id 4, :distance 7} {:id 5, :distance 0})
+       (group-by :id)
+       (apply min-key key)
+       val)
+  (->> '({:id 0, :distance 15} {:id 1, :distance 10} {:id 2, :distance 6} {:id 3, :distance 10} {:id 4, :distance 7} {:id 5, :distance 0})
+       (group-by :distance))
+  (->> '([{:id 0 :point {:x 1 :y 1}} {:id 1 :point {:x 2 :y 2}}])
+       (map (fn [value]
+              (println value)
+              (map :point value)))))
