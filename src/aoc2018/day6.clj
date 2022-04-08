@@ -20,12 +20,11 @@
   (->> file-name
        common/read-file
        (map line->point)
-       (map-indexed (fn [index point] (assoc point :id index))))) ; 편의를 위해 index를 넣어준다.
+       ; (char (+ index 65))를 하였으나 이렇게 만들었을 경우에는 Z가 넘어가고 본문처럼 알파벳을 이용할 필요가 없어서 그냥 id를 이용한다.
+       (map-indexed (fn [index point] (assoc point :id index)))))
 
-(def data (->> "resources/aoc2018/day6_input.txt"
-               read-file))
-(def test-data (->> "resources/aoc2018/day6_test.txt"
-                    read-file))
+(def data (read-file "resources/aoc2018/day6_input.txt"))
+(def test-data (read-file "resources/aoc2018/day6_test.txt"))
 
 ; Convert
 
@@ -47,7 +46,7 @@
   [points]
   (let [xs (map :x points)
         ys (map :y points)]
-    {:start-x (apply min xs)
+    {:start-x (apply min xs) ; (apply min [...])
      :end-x   (apply max xs)
      :start-y (apply min ys)
      :end-y   (apply max ys)}))
@@ -76,7 +75,9 @@
      (abs (- (:y point) (:y target)))))
 
 (defn distance->targets
-  "Targets기준으로 point의 거리를 넣어준다."
+  "Targets기준으로 point의 거리를 넣어준다.
+  targets: input {:x 1 :y 1}... point {:x 1 :y 1}
+  "
   [targets point]
   (->> targets
        (map #(convert-id-distance (manhattan-distance point %) %)))) ; 못줄이나?
@@ -102,9 +103,7 @@
          (filter #(= 1 (count (:id %)))) ; 1보다 큰것은 두가지 포지션이 함께 차지할수 있는 공간이므로 제외한다.
          (group-by :id) ; id별로 차지할수 있는 공간을 묶어준다.
          (map val) ; id는 이제 필요 없으므로 position 값들만 필요하다.
-         #_(common/debug "before")
          (map #(map :point %)) ; out map [{:id :point}], in map {:id :point} hash에서 point 카운트만 구할것이다.
-         (common/debug "after")
          (remove #(some has-remove-area? %))))) ; %는 ({:X :y} ...) 이것을 이용해서 bounded area의 가장자리의 값을 가진지 판단한다. 가질 경우에는 삭제한다.
 
 (defn max-limit-area
@@ -112,6 +111,21 @@
   (->> areas
        (map #(count %))
        (apply max)))
+
+(defn point->distance-sum
+  "Target들과 point의 distance의 합을 구한다."
+  [targets point]
+  (->> (distance->targets targets point)
+       (map :distance)
+       (apply +)))
+
+(defn data->point-distance-sum
+  "Target point를 입력 받아서 boundary를 만들고 각 포인트에서 distance의 합을 구한다."
+  [targets]
+  (->> targets
+       get-boundary
+       get-points-in-bounded-area
+       (map #(point->distance-sum targets %))))
 
 ; Solution
 
@@ -122,12 +136,19 @@
        max-limit-area))
 
 (defn part2
-  [data]
-  (->> data))
+  "boundary안에서 target과의 distance의 합이 주어진 값보다 작다면 만족하는 point이다.
+  이 포인트들의 count를 구하는 문제"
+  [data max-distance-sum]
+  (->> data
+       data->point-distance-sum
+       (filter #(< % max-distance-sum))
+       count))
 
 (comment
-  (part1 test-data)
-  (part1 data))
+  (part1 test-data) ;17
+  (part1 data) ;3293
+  (part2 test-data 10000) ;72
+  (part2 data 10000)) ;45176
 
 ; testing
 
@@ -148,4 +169,10 @@
   (->> '([{:id 0 :point {:x 1 :y 1}} {:id 1 :point {:x 2 :y 2}}])
        (map (fn [value]
               (println value)
-              (map :point value)))))
+              (map :point value))))
+  (->> [1 2 3 4 5]
+       (map-indexed (fn [index value] {:id (char (+ index 65))
+                                       :value value})))
+  (->> [1 2 3 4 5]
+       (map inc)
+       ))
