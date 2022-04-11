@@ -2,7 +2,7 @@
   (:require [common.common :as common]))
 
 (def input
-  (->> (common/read-file "src/aoc2018/day1_input.txt")
+  (->> (common/read-file "resources/aoc2018/day1_input.txt")
        (map #(Integer/parseInt %))))
 
 ; Part One
