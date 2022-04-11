@@ -70,7 +70,7 @@
 
 (defn join-units
   [units]
-  (s/join "" units))
+  (s/join units))
 
 (comment
   (->> test-file-name
