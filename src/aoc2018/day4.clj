@@ -25,7 +25,7 @@
 (defn read-file
   "파일을 load 한다."
   [file-name]
-  (->> (common/read-file (str "src/aoc2018/" file-name ".txt"))))
+  (->> (common/read-file (str "resources/aoc2018/" file-name ".txt"))))
 
 (defn read-file->data
   "파일을 read하고 원하는 형태로 parse 한다.

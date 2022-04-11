@@ -23,7 +23,7 @@
           {:id id :x x :y y :w w :h h}))))
 
 (def input-data
-  (->> "src/aoc2018/day3_input.txt"
+  (->> "resources/aoc2018/day3_input.txt"
        common/read-file
        (map line->seq)
        (map seq->hashmap)))

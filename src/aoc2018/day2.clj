@@ -2,7 +2,7 @@
   (:require [common.common :as common]
             [clojure.string :as string]))
 
-(def input (common/read-file "src/aoc2018/day2_input.txt"))
+(def input (common/read-file "resources/aoc2018/day2_input.txt"))
 
 ; Part One
 
