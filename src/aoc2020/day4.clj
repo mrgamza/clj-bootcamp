@@ -1,6 +1,6 @@
 (ns aoc2020.day4
-  (:require [common.common :as common]
-            [clojure.spec.alpha :as s]))
+  (:require
+    [clojure.spec.alpha :as s]))
 
 (defn parse-key-value
   [key value]
@@ -56,7 +56,7 @@
        empty?))
 
 ; spec 부분을 알려주셔서 참고하여서 개발하였습니다. https://clojure.org/guides/spec
-(s/def :validate/byr (s/int-in 1920 2003)) ; 1920 ~ 2002
+(s/def :passport/byr (s/int-in 1920 2003)) ; 1920 ~ 2002
 (s/def :validate/iyr (s/int-in 2010 2021)) ; 2010 ~ 2020
 (s/def :validate/eyr (s/int-in 2020 2031)) ; 2020 ~ 2030
 (s/def :validate/hgt (fn [{value :value unit :unit}]
@@ -68,7 +68,7 @@
 (s/def :validate/pid #(re-matches #"\d{9}" %))
 (s/def :validate/cid any?)
 (s/def :validate/passport
-  (s/keys :req-un [:validate/byr :validate/iyr :validate/eyr :validate/hgt :validate/hcl :validate/ecl :validate/pid]
+  (s/keys :req-un [:passport/byr :validate/iyr :validate/eyr :validate/hgt :validate/hcl :validate/ecl :validate/pid]
           :opt-un [:validate/cid]))
 
 (defn valid-passport?
