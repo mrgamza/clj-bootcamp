@@ -80,7 +80,8 @@
   "
   [targets point]
   (->> targets
-       (map #(convert-id-distance (manhattan-distance point %) %)))) ; 못줄이나?
+       (map (fn [target]
+              (convert-id-distance (manhattan-distance point target) target)))))
 
 (defn min-distance-ids
   "bounded area를 순회하면서 target들과 비교하여 가장 가까운 위치의 target을 가져간다.
@@ -92,8 +93,11 @@
        val
        (map :id)))
 
-(defn data->limit-areas
-  "target을 입력 받아서 확장을 진행하였을 경우에 더 넓어지지 못하는 최대 크기를 구하도록 한다."
+(defn limit-areas
+  "target을 입력 받아서 확장을 진행하였을 경우에 더 넓어지지 못하는 최대 크기를 구하도록 한다.
+  Input. [targets: File의 line data {:x 1 :y 1}]
+  Output. (({:x 2, :y 3} {:x 2, :y 4}))
+  "
   [targets]
   (let [boundary (get-boundary targets)
         points-in-bounded-area (get-points-in-bounded-area boundary)
@@ -104,12 +108,13 @@
          (group-by :id) ; id별로 차지할수 있는 공간을 묶어준다.
          (map val) ; id는 이제 필요 없으므로 position 값들만 필요하다.
          (map #(map :point %)) ; out map [{:id :point}], in map {:id :point} hash에서 point 카운트만 구할것이다.
-         (remove #(some has-remove-area? %))))) ; %는 ({:X :y} ...) 이것을 이용해서 bounded area의 가장자리의 값을 가진지 판단한다. 가질 경우에는 삭제한다.
+         (remove #(some has-remove-area? %))
+         (common/debug "Output")))) ; %는 ({:X :y} ...) 이것을 이용해서 bounded area의 가장자리의 값을 가진지 판단한다. 가질 경우에는 삭제한다.
 
 (defn max-limit-area
   [areas]
   (->> areas
-       (map #(count %))
+       (map count)
        (apply max)))
 
 (defn point->distance-sum
@@ -119,7 +124,7 @@
        (map :distance)
        (apply +)))
 
-(defn data->point-distance-sum
+(defn point-distance-sum
   "Target point를 입력 받아서 boundary를 만들고 각 포인트에서 distance의 합을 구한다."
   [targets]
   (->> targets
@@ -131,16 +136,15 @@
 
 (defn part1
   [data]
-  (->> data
-       data->limit-areas
-       max-limit-area))
+  (-> data
+      limit-areas
+      max-limit-area))
 
 (defn part2
-  "boundary안에서 target과의 distance의 합이 주어진 값보다 작다면 만족하는 point이다.
-  이 포인트들의 count를 구하는 문제"
+  "boundary안에서 target과의 distance의 합이 주어진 값보다 작다면 만족하는 point이다. 이 포인트들의 count를 구하는 문제"
   [data max-distance-sum]
   (->> data
-       data->point-distance-sum
+       point-distance-sum
        (filter #(< % max-distance-sum))
        count))
 
