@@ -17,14 +17,6 @@
                    re-find
                    rest)))))
 
-(defn key-set
-  "Keys -> Key #{} 형태로 변환한다."
-  [keys]
-  (->> keys
-       (reduce (fn [acc value]
-                 (assoc acc value #{}))
-               {})))
-
 (defn route-init
   "경로에 존재하는 데이터를 모두 받아들여서 유일한 키의 HashMap으로 return하는 function
   Input : ((C A) (C F) (A B) (A D) (B E) (D E) (F E))
@@ -32,7 +24,8 @@
   [data]
   (->> data ; ((C A) (C F) (A B) (A D) (B E) (D E) (F E))
        flatten ; (C A C F A B A D B E D E F E). Flat 하게 만든다.
-       key-set)) ; {E #{}, C #{}, F #{}, B #{}, A #{}, D #{}}
+       (map #(vector % #{}))
+       (into {}))) ; {E #{}, C #{}, F #{}, B #{}, A #{}, D #{}}
 
 (defn route-grouping
   "Before와 연결될수 있는 After들을 만들어주는 function"
@@ -46,7 +39,7 @@
   "Before 값이 없는 값들중에 key가 빠른 값을 찾는다."
   [groups]
   (->> groups ; {E #{F B D}, C #{}, F #{C}, B #{A}, A #{C}, D #{A}}
-       (filter #(empty? (val %))) ; Value가 1개라면 자신이 다음 후보다.
+       (filter #(empty? (val %))) ; Value가 0개라면 자신이 다음 후보다.
        (sort-by key) ; ([F ()] [A ()]) -> ([A ()] [F ()])
        first ; [A ()]
        key)) ; A
@@ -59,17 +52,21 @@
               [group (remove #(= % next-work) before-values)])) ; ([E (F B D)] [F ()] [B (A)] [A ()] [D (A)])
        (into {}))) ; {E (F B D), F (), B (A), A (), D (A)}
 
+(defn find-next-path
+  [[groups route-plan]]
+  (let [next-unit (find-next-unit groups)
+        route-plan (conj route-plan next-unit)
+        groups (remove-done-route next-unit
+                                  (dissoc groups next-unit))]
+    [groups route-plan]))
+
 (defn route-order
   "Work order를 구하는 function"
   [groups]
-  (->> groups
-       (reduce (fn [[groups route-plan] _]
-                 (let [next-unit (find-next-unit groups)
-                       route-plan (conj route-plan next-unit)
-                       groups (remove-done-route next-unit
-                                                 (dissoc groups next-unit))]
-                   [groups route-plan]))
-               [groups []])
+  (->> [groups []]
+       (iterate find-next-path)
+       (drop (count groups))
+       first
        last))
 
 (defn join-order
@@ -90,4 +87,155 @@
        route-order
        join-order)) ; "GLMVWXZDKOUCEJRHFAPITSBQNY"
 
+; Part 2
 
+(defn find-next-route
+  "Before 값이 없는 값들중에 key가 빠른 순으로 리턴한다."
+  [groups]
+  (->> groups ; {E #{F B D}, C #{}, F #{C}, B #{A}, A #{C}, D #{A}}
+       (filter #(empty? (val %))) ; Value가 1개라면 자신이 다음 후보다.
+       (map key) ; (F A)
+       sort)) ; (A F)
+
+(defn index-value
+  [char]
+  (inc (clojure.string/index-of "ABCDEFGHIJKLMNOPQRSTUVWXYZ" char)))
+
+(defn real-index-value
+  [char]
+  (+ (index-value char) 60))
+
+(defn get-idle-worker
+  [workers]
+  (->> workers
+       (filter #(= 0 ((val %) :remain)))))
+
+(defn progress-step
+  "동작하고는 worker의 remain을 하나씩 차감하고 0이되는 순간에 제거해야하는 element를 넘겨준다."
+  [workers]
+  (let [result (->> workers
+                    (reduce (fn [[acc end] worker]
+                              (let [worker-value (val worker)
+                                    id (key worker)
+                                    value (worker-value :value)
+                                    remain (worker-value :remain)]
+                                (cond
+                                  ; idle worker
+                                  (= remain 0) [acc end]
+                                  ; end worker
+                                  (= (dec remain) 0) [(assoc acc id {:value ""
+                                                                     :remain 0})
+                                                      (conj end value)]
+                                  ; doing worker
+                                  :else [(assoc acc id {:value value
+                                                        :remain (dec remain)})
+                                         end])))
+                            [workers '[]]))]
+    {:dec-workers (first result)
+     :end-works (second result)}))
+
+(defn mapping-worker
+  "비어 있는 worker에 route 할수 있는 부분들을 넣어준다."
+  [routes workers]
+  (->> routes
+       (reduce (fn [workers route]
+                 (let [idle-worker (first (get-idle-worker workers))]
+                   (if idle-worker
+                     (assoc workers (key idle-worker) {:value route
+                                                       :remain (real-index-value route)})
+                     (reduced workers)
+                     )))
+               workers)))
+
+(defn contain-string
+  [targets unit]
+  (some #(= (str unit) %) targets))
+
+(defn remove-end-routes
+  "Order에 사용된 value를 제거하여 준다."
+  [route done-routes]
+  (->> route ; {E #{F B D}, F #{C}, B #{A}, A #{C}, D #{A}}
+       (map (fn [[route before-values]]
+              [route (remove #(contain-string done-routes %) before-values)])); ([E (F B D)] [F ()] [B (A)] [A ()] [D (A)])
+       (into {}))) ; {E (F B D), F (), B (A), A (), D (A)}
+
+(defn remove-can-next-route
+  [route can-next-routes]
+  (->> [route can-next-routes]
+       (iterate (fn [[route can-next-routes]]
+                  (let [target (first can-next-routes)
+                        next-targets (rest can-next-routes)]
+                    [(dissoc route target) next-targets])))
+       (take (inc (count can-next-routes)))
+       last
+       first))
+
+(defn idle-worker-count
+  [worker]
+  (count (get-idle-worker worker)))
+
+(defn merge-array
+  [current new]
+  (->> new
+       (reduce (fn [acc value]
+                 (conj acc value))
+               current)))
+
+(defn work
+  [{:keys [route worker elapsed end-routes]}]
+  (let [{:keys [dec-workers end-works]} (progress-step worker) ; 기존 워커들에서 동작하는것들은 값을 차감하고 제거 해야하는 부분들을 만든다.
+        merged-end-routes (merge-array end-routes end-works) ; 기존 종료된것과 새로 종료된것을 합친다.
+        remain-routes (remove-end-routes route merged-end-routes) ; 완료가 되고 제거 되고 남는 route 하여야 하는 것들)
+        can-next-routes (find-next-route remain-routes) ; 다음에 넣을수 있는 Route들을 가져온다.
+        idle-worker-count (idle-worker-count dec-workers) ; 사용할수 있는 worker 갯수
+        next-worker (mapping-worker can-next-routes dec-workers)
+        next-route (remove-can-next-route route (take idle-worker-count can-next-routes))]
+    {:route next-route
+     :worker next-worker
+     :elapsed (inc elapsed)
+     :end-routes merged-end-routes
+     }))
+
+(defn create-worker
+  [worker-count]
+  (->> (range 0 worker-count)
+       (reduce (fn [acc id]
+                 (assoc acc id {:value ""
+                                :remain 0}))
+               {})))
+
+(defn route-count
+  [route]
+  (->> route
+       keys
+       count))
+
+(defn elapsed-working
+  [worker-count route]
+  (let [worker (create-worker worker-count)
+        route-count (route-count route)]
+    (->> (iterate work {:route route
+                        :worker worker
+                        :elapsed 0
+                        :end-routes []})
+         (take-while #(< (count (% :end-routes)) route-count))
+         last
+         (common/debug "Datas")
+         :elapsed)))
+
+(defn get-elapsed
+  [work-count file-name]
+  (->> file-name
+       common/read-file
+       lines->from-tos
+       route-grouping
+       (elapsed-working work-count))
+  )
+
+(comment
+  (->> test-file-name
+       (get-elapsed 1)) ;CABDFE
+  (->> test-file-name
+       (get-elapsed 2)) ; 15
+  (->> file-name
+       (get-elapsed 5))) ; 207
