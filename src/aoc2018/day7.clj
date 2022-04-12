@@ -73,19 +73,20 @@
   [order]
   (s/join order))
 
-(comment
-  (->> test-file-name
-       common/read-file
-       lines->from-tos
-       route-grouping
-       route-order
-       join-order) ; "CABDFE"
+(defn get-order
+  [file-name]
   (->> file-name
        common/read-file
        lines->from-tos
        route-grouping
        route-order
-       join-order)) ; "GLMVWXZDKOUCEJRHFAPITSBQNY"
+       join-order))
+
+(comment
+  (->> test-file-name
+       get-order) ; "CABDFE"
+  (->> file-name
+       get-order)) ; "GLMVWXZDKOUCEJRHFAPITSBQNY"
 
 ; Part 2
 
@@ -101,14 +102,25 @@
   [char]
   (inc (clojure.string/index-of "ABCDEFGHIJKLMNOPQRSTUVWXYZ" char)))
 
-(defn real-index-value
-  [char]
-  (+ (index-value char) 60))
-
 (defn get-idle-worker
   [workers]
   (->> workers
        (filter #(= 0 ((val %) :remain)))))
+
+(def idle-worker
+  {:value ""
+   :remain 0})
+
+(defn progress-condition
+  [acc id value remain end]
+  (cond
+    (zero? remain) [acc end]
+    (zero? (dec remain)) [(assoc acc id idle-worker)
+                          (conj end value)]
+    :else [(assoc acc id {:value value
+                          :remain (dec remain)})
+           end])
+  )
 
 (defn progress-step
   "동작하고는 worker의 remain을 하나씩 차감하고 0이되는 순간에 제거해야하는 element를 넘겨준다."
@@ -119,30 +131,20 @@
                                     id (key worker)
                                     value (worker-value :value)
                                     remain (worker-value :remain)]
-                                (cond
-                                  ; idle worker
-                                  (= remain 0) [acc end]
-                                  ; end worker
-                                  (= (dec remain) 0) [(assoc acc id {:value ""
-                                                                     :remain 0})
-                                                      (conj end value)]
-                                  ; doing worker
-                                  :else [(assoc acc id {:value value
-                                                        :remain (dec remain)})
-                                         end])))
+                                (progress-condition acc id value remain end)))
                             [workers '[]]))]
     {:dec-workers (first result)
      :end-works (second result)}))
 
 (defn mapping-worker
   "비어 있는 worker에 route 할수 있는 부분들을 넣어준다."
-  [routes workers]
+  [routes workers inc-value]
   (->> routes
        (reduce (fn [workers route]
                  (let [idle-worker (first (get-idle-worker workers))]
                    (if idle-worker
                      (assoc workers (key idle-worker) {:value route
-                                                       :remain (real-index-value route)})
+                                                       :remain (+ (index-value route) inc-value)})
                      (reduced workers)
                      )))
                workers)))
@@ -181,27 +183,28 @@
                  (conj acc value))
                current)))
 
+; 함수형태로 변경하여보자.
+
 (defn work
-  [{:keys [route worker elapsed end-routes]}]
+  [{:keys [route worker elapsed end-routes inc-value]}]
   (let [{:keys [dec-workers end-works]} (progress-step worker) ; 기존 워커들에서 동작하는것들은 값을 차감하고 제거 해야하는 부분들을 만든다.
         merged-end-routes (merge-array end-routes end-works) ; 기존 종료된것과 새로 종료된것을 합친다.
         remain-routes (remove-end-routes route merged-end-routes) ; 완료가 되고 제거 되고 남는 route 하여야 하는 것들)
         can-next-routes (find-next-route remain-routes) ; 다음에 넣을수 있는 Route들을 가져온다.
         idle-worker-count (idle-worker-count dec-workers) ; 사용할수 있는 worker 갯수
-        next-worker (mapping-worker can-next-routes dec-workers)
+        next-worker (mapping-worker can-next-routes dec-workers inc-value)
         next-route (remove-can-next-route route (take idle-worker-count can-next-routes))]
     {:route next-route
      :worker next-worker
      :elapsed (inc elapsed)
      :end-routes merged-end-routes
-     }))
+     :inc-value inc-value}))
 
 (defn create-worker
   [worker-count]
   (->> (range 0 worker-count)
        (reduce (fn [acc id]
-                 (assoc acc id {:value ""
-                                :remain 0}))
+                 (assoc acc id idle-worker))
                {})))
 
 (defn route-count
@@ -211,31 +214,34 @@
        count))
 
 (defn elapsed-working
-  [worker-count route]
+  [worker-count inc-value route]
   (let [worker (create-worker worker-count)
         route-count (route-count route)]
     (->> (iterate work {:route route
                         :worker worker
                         :elapsed 0
-                        :end-routes []})
+                        :end-routes []
+                        :inc-value inc-value})
          (take-while #(< (count (% :end-routes)) route-count))
          last
          (common/debug "Datas")
          :elapsed)))
 
 (defn get-elapsed
-  [work-count file-name]
+  [work-count inc-value file-name]
   (->> file-name
        common/read-file
        lines->from-tos
        route-grouping
-       (elapsed-working work-count))
+       (elapsed-working work-count inc-value))
   )
 
 (comment
   (->> test-file-name
-       (get-elapsed 1)) ;CABDFE
+       (get-elapsed 1 0)) ; 21
   (->> test-file-name
-       (get-elapsed 2)) ; 15
+       (get-elapsed 2 0)) ; 15
   (->> file-name
-       (get-elapsed 5))) ; 207
+       (get-elapsed 1 60)) ; 1911
+  (->> file-name
+       (get-elapsed 5 60))) ; 1105
