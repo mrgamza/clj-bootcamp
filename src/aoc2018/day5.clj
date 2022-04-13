@@ -10,6 +10,7 @@
 ; Logic
 
 (defn react-rules
+  []
   [[\a \A]
    [\b \B]])
 
