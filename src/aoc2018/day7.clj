@@ -189,11 +189,13 @@
   [{:keys [route worker elapsed end-routes inc-value]}]
   (let [{:keys [dec-workers end-works]} (progress-step worker) ; 기존 워커들에서 동작하는것들은 값을 차감하고 제거 해야하는 부분들을 만든다.
         merged-end-routes (merge-array end-routes end-works) ; 기존 종료된것과 새로 종료된것을 합친다.
-        remain-routes (remove-end-routes route merged-end-routes) ; 완료가 되고 제거 되고 남는 route 하여야 하는 것들)
-        can-next-routes (find-next-route remain-routes) ; 다음에 넣을수 있는 Route들을 가져온다.
+        can-next-routes (->> (remove-end-routes route merged-end-routes) ; 완료가 되고 제거 되고 남는 route 하여야 하는 것들)
+                             find-next-route) ; 다음에 넣을수 있는 Route들을 가져온다.
         idle-worker-count (idle-worker-count dec-workers) ; 사용할수 있는 worker 갯수
-        next-worker (mapping-worker can-next-routes dec-workers inc-value)
-        next-route (remove-can-next-route route (take idle-worker-count can-next-routes))]
+        next-worker (mapping-worker can-next-routes dec-workers inc-value) ; 다음에 수행 가능한 workers
+        next-route (->> can-next-routes ; 다음 진행 가능한 routes에서
+                        (take idle-worker-count) ; idle 카운트 만큼을 차감
+                        (remove-can-next-route route))] ; 진행하고 있는 route를 제거한다.
     {:route next-route
      :worker next-worker
      :elapsed (inc elapsed)
