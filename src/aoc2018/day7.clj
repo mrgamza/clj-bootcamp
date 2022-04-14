@@ -97,11 +97,15 @@
 
 (defn find-next-routes
   "선행되어야 하는 값이 없는 Key 값들을 알파벳 순서대로 return 하는 function"
-  [groups]
-  (->> groups ; {E #{F B D}, C #{}, F #{C}, B #{A}, A #{C}, D #{A}}
-       (filter #(empty? (val %))) ; Value가 1개라면 자신이 다음 후보다.
-       (map key) ; (F A)
-       sort)) ; (A F)
+  [{:keys [route workers ended-works]}]
+  (let [can-next-routes (->> route
+                             (filter #(empty? (val %)))
+                             (map key)
+                             sort)]
+    {:route route
+     :workers workers
+     :ended-works ended-works
+     :can-next-routes can-next-routes}))
 
 (defn index-value
   "Char의 index를 return 하는 function"
@@ -116,27 +120,32 @@
 
 (defn reduce-next-one-step
   "worker 의 remain에서 1씩 차감"
-  [acc worker end-works]
+  [acc worker ended-works]
   (let [id (key worker)
         {:keys [value remain]} (->> worker
                                    val)]
     (cond
-      (zero? remain) {:dec-workers acc
-                      :end-works end-works}
-      (zero? (dec remain)) {:dec-workers (assoc acc id idle-worker)
-                            :end-works (conj end-works value)}
-      :else {:dec-workers (assoc acc id {:value value
+      (zero? remain) {:workers acc
+                      :ended-works ended-works}
+      (zero? (dec remain)) {:workers (assoc acc id idle-worker)
+                            :ended-works (conj ended-works value)}
+      :else {:workers (assoc acc id {:value value
                                          :remain (dec remain)})
-             :end-works end-works})))
+             :ended-works ended-works})))
 
+; FIXME 두개로 나누도록 해주자. end하는것 목록과 remain 차감하는것
 (defn next-one-step
   "동작하고는 worker의 remain을 하나씩 차감하고 0이되는 순간에 제거해야하는 element를 넘겨준다."
-  [workers]
-  (->> workers
-       (reduce (fn [{:keys [dec-workers end-works]} worker]
-                 (reduce-next-one-step dec-workers worker end-works))
-               {:dec-workers workers
-                :end-works []})))
+  [{:keys [route ended-works workers]}]
+  (let [{:keys [workers ended-works]} (->> workers
+                                           (reduce (fn [{:keys [workers ended-works]} worker]
+                                                     (reduce-next-one-step workers worker ended-works))
+                                                   {:workers workers
+                                                    :ended-works ended-works}))]
+    {:route route
+     :workers workers
+     :ended-works ended-works
+     :can-next-routes '{}}))
 
 (defn mapping-worker
   "비어 있는 worker에 route 할수 있는 부분들을 넣어준다."
@@ -160,11 +169,15 @@
 
 (defn remove-ended-routes
   "Order에 사용된 value를 제거하여 준다."
-  [route done-routes]
-  (->> route ; {E #{F B D}, F #{C}, B #{A}, A #{C}, D #{A}}
-       (map (fn [[route before-values]]
-              [route (remove #(contain-string done-routes %) before-values)])); ([E (F B D)] [F ()] [B (A)] [A ()] [D (A)])
-       (into {}))) ; {E (F B D), F (), B (A), A (), D (A)}
+  [{:keys [route workers ended-works can-next-routes]}]
+  (let [remove-ended-route (->> route
+                                (map (fn [[route before-values]]
+                                       [route (remove #(contain-string ended-works %) before-values)]))
+                                (into {}))]
+    {:route remove-ended-route
+     :workers workers
+     :ended-works ended-works
+     :can-next-routes can-next-routes}))
 
 (defn remove-routes
   "다음에 진행 가능한 부분을 route에서 제거한다."
@@ -183,23 +196,20 @@
   [worker]
   (count (get-idle-worker worker)))
 
-(defn merge-array
-  [current new]
-  (concat current new))
-
-(defn working
-  [{:keys [route worker elapsed end-routes inc-value]}]
-  (let [{:keys [dec-workers end-works]} (next-one-step worker) ; 기존 워커들에서 동작하는것들은 값을 차감하고 제거 해야하는 부분들을 만든다.
-        ended-routes (merge-array end-routes end-works) ; 기존 종료된것과 새로 종료된것을 합친다.
-        can-next-routes (->> (remove-ended-routes route ended-routes) ; 완료가 되고 제거 되고 남는 route 하여야 하는 것들)
-                             find-next-routes)] ; 다음에 넣을수 있는 Route들을 가져온다.
-    {:route (->> can-next-routes ; 다음 진행 가능한 routes에서
-                 (take (idle-worker-count dec-workers)) ; 사용 가능한 worker 만큼 찾아오고 idle 카운트 만큼을 차감
-                 (remove-routes route)) ; 진행하고 있는 route를 제거한다.
-     :worker (mapping-worker can-next-routes dec-workers inc-value) ; 다음에 수행 가능한 workers
-     :elapsed (inc elapsed)
-     :end-routes ended-routes
-     :inc-value inc-value}))
+(defn work
+  [progress]
+  (let [{:keys [route workers ended-works can-next-routes]}
+        (->> progress
+             next-one-step
+             remove-ended-routes
+             find-next-routes)]
+    {:route (->> can-next-routes
+                 (take (idle-worker-count workers))
+                 (remove-routes route))
+     :workers (mapping-worker can-next-routes workers (progress :inc-value))
+     :elapsed (inc (progress :elapsed))
+     :ended-works ended-works
+     :inc-value (progress :inc-value)}))
 
 (defn create-worker
   [worker-count]
@@ -208,19 +218,22 @@
                  (assoc acc id idle-worker))
                {})))
 
+(defn work-end?
+  [route-count progress]
+  (< (count (progress :ended-works)) route-count))
+
 (defn elapsed-working
   [worker-count inc-value route]
-  (let [worker (create-worker worker-count)
+  (let [workers (create-worker worker-count)
         route-count (count route)]
     (->> {:route route
-          :worker worker
-          :elapsed 0
-          :end-routes []
+          :workers workers
+          :elapsed -1
+          :ended-works []
           :inc-value inc-value}
-         (iterate working)
-         (take-while #(< (count (% :end-routes)) route-count))
-         last
-         (common/debug "Datas")
+         (iterate work)
+         (drop-while #(work-end? route-count %))
+         first
          :elapsed)))
 
 (defn get-elapsed
