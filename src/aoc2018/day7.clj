@@ -97,15 +97,12 @@
 
 (defn find-next-routes
   "선행되어야 하는 값이 없는 Key 값들을 알파벳 순서대로 return 하는 function"
-  [{:keys [route workers ended-works]}]
+  [{:as progress :keys [route]}]
   (let [can-next-routes (->> route
                              (filter #(empty? (val %)))
                              (map key)
                              sort)]
-    {:route route
-     :workers workers
-     :ended-works ended-works
-     :can-next-routes can-next-routes}))
+    (assoc progress :can-next-routes can-next-routes)))
 
 (defn char-index
   "Char의 index를 return 하는 function"
@@ -130,15 +127,12 @@
 
 (defn modify-works
   "Worker를 변형하는 function"
-  [{:keys [route workers ended-works]}]
+  [{:as progress :keys [workers]}]
   (let [modify-workers (->> workers
                             (reduce (fn [workers worker]
                                       (dec-progress-works workers worker))
                                     workers))]
-    {:route route
-     :workers modify-workers
-     :ended-works ended-works
-     :can-next-routes '{}}))
+    (assoc progress :workers modify-workers)))
 
 (defn ended-work?
   "방금 종료된 Worker인지 여부"
@@ -149,30 +143,24 @@
 
 (defn find-ended-works
   "방금 종료된 Worker를 찾는다. 기준 :execute-element는 있으나 :remain이 0인 경우"
-  [{:keys [route workers ended-works can-next-routes]}]
+  [{:as progress :keys [workers ended-works]}]
   (let [new-ended-works (->> workers
                              vals
                              (filter #(ended-work? %))
                              (map #(% :execute-element)))
         modify-ended-works (concat ended-works new-ended-works)]
-    {:route route
-     :workers workers
-     :ended-works modify-ended-works
-     :can-next-routes can-next-routes}))
+    (assoc progress :ended-works modify-ended-works)))
 
 (defn remove-ended-works
   "방금 종료된 Worker를 삭제한다."
-  [{:keys [route workers ended-works can-next-routes]}]
+  [{:as progress :keys [workers]}]
   (let [modify-workers (->> workers
                             (reduce (fn [workers worker]
                                       (if (ended-work? (val worker))
                                         (assoc workers (key worker) idle-worker)
                                         workers))
                                     workers))]
-    {:route route
-     :workers modify-workers
-     :ended-works ended-works
-     :can-next-routes can-next-routes}))
+    (assoc progress :workers modify-workers)))
 
 (defn insert-work-in-worker
   [workers route inc-working-time]
@@ -184,15 +172,12 @@
 
 (defn modify-worker
   "비어 있는 worker에 route 할수 있는 부분들을 넣어준다."
-  [inc-working-time {:keys [route workers ended-works can-next-routes]}]
+  [inc-working-time {:as progress :keys [route workers ended-works can-next-routes]}]
   (let [modify-workers (->> can-next-routes
                             (reduce (fn [workers route]
                                       (insert-work-in-worker workers route inc-working-time))
                                     workers))]
-    {:route route
-     :workers modify-workers
-     :ended-works ended-works
-     :can-next-routes can-next-routes}))
+    (assoc progress :workers modify-workers)))
 
 (defn contain-string
   "targets에 unit들이 존재하는지 확인
@@ -203,15 +188,12 @@
 
 (defn remove-ended-routes
   "Order에 사용된 value를 제거하여 준다."
-  [{:keys [route workers ended-works can-next-routes]}]
+  [{:as progress :keys [route ended-works]}]
   (let [remove-ended-route (->> route
                                 (map (fn [[route before-values]]
                                        [route (remove #(contain-string ended-works %) before-values)]))
                                 (into {}))]
-    {:route remove-ended-route
-     :workers workers
-     :ended-works ended-works
-     :can-next-routes can-next-routes}))
+    (assoc progress :route remove-ended-route)))
 
 (defn idle-worker-count
   [worker]
@@ -224,7 +206,7 @@
 
 (defn modify-routes
   "진행될 부분을 route 목록에서 삭제한다."
-  [{:keys [route workers ended-works can-next-routes]}]
+  [{:as progress :keys [route workers ended-works can-next-routes]}]
   (let [idle-worker-count (idle-worker-count workers)
         take-next-routes (take idle-worker-count can-next-routes)
         init-data {:route route
@@ -234,27 +216,21 @@
                           (drop idle-worker-count)
                           first
                           :route)]
-    {:route modify-route
-     :workers workers
-     :ended-works ended-works
-     :can-next-routes can-next-routes}))
+    (assoc progress :route modify-route)))
 
 (defn work
   [{:as progress :keys [elapsed inc-working-time]}]
-  (let [{:keys [route workers ended-works]}
-        (->> progress
-             modify-works
-             find-ended-works
-             remove-ended-works
-             remove-ended-routes
-             find-next-routes
-             modify-routes
-             (modify-worker inc-working-time))]
-    {:route route
-     :workers workers
-     :ended-works ended-works
-     :elapsed (inc elapsed)
-     :inc-working-time inc-working-time}))
+  (->> {:elapsed (inc elapsed)
+        :inc-working-time inc-working-time}
+       (concat (->> progress
+                    modify-works
+                    find-ended-works
+                    remove-ended-works
+                    remove-ended-routes
+                    find-next-routes
+                    modify-routes
+                    (modify-worker inc-working-time)))
+       (into {})))
 
 (defn create-worker
   [worker-count]
