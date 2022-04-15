@@ -28,7 +28,8 @@
   {:index         0
    :acc-val       0
    :visited       []
-   :second-visit? false})
+   :second-visit? false
+   :replace-exit? false})
 
 (defn get-action-number
   [data index]
@@ -82,7 +83,7 @@
   (->> operation
        (execute-operation data)))
 
-(defn stop-operation?
+(defn element-visit-twice?
   [{:keys [second-visit?]}]
   (not second-visit?))
 
@@ -100,7 +101,7 @@
                   parsing-data)]
     (->> init-operation
          (iterate #(work data %))
-         (drop-while #(stop-operation? %))
+         (drop-while #(element-visit-twice? %))
          first
          (modify-acc-val data))))
 
@@ -108,11 +109,43 @@
   (part1 test-file)
   (part1 real-file))
 
-(comment
-  (->> test-file
-       read-file
-       parsing-data))
+; Part 2
+
+(defn generate-exit-condition-candidate-data
+  "Input : [[:nop 0] [:acc 1] [:jmp 4] [:acc 3] [:jmp -3] [:acc -99] [:acc 1] [:jmp -4] [:acc 6]]
+  Output : ([[:jmp 0] [:acc 1] [:jmp 4] [:acc 3] [:jmp -3] [:acc -99] [:acc 1] [:jmp -4] [:acc 6]] [[:nop 0] [:acc 1] [:nop 4] [:acc 3] [:jmp -3] [:acc -99] [:acc 1] [:jmp -4] [:acc 6]] ..."
+  [data]
+  (->> data
+       (map-indexed (fn [index [action number]]
+                      (case action
+                        :nop (assoc data index [:jmp number])
+                        :jmp (assoc data index [:nop number])
+                        :acc nil)))
+       (remove nil?)))
+
+(defn exit-when-value-changes?
+  [{:keys [replace-exit?]}]
+  (not replace-exit?))
+
+(defn part2-core
+  [data]
+  (->> data
+       init-operation
+       (iterate #(work data %))
+       (drop-while #(exit-when-value-changes? %))
+       first))
+
+(defn part2
+  [file-name]
+  (let [data (->> file-name
+                  read-file
+                  parsing-data
+                  generate-exit-condition-candidate-data)]
+    (->> data
+         (map part2-core)
+         first
+         :acc-val)))
 
 (comment
-  (->> (- 1 0)))
-
+  (part2 test-file)
+  (part2 real-file))
