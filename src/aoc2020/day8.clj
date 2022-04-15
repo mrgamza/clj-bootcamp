@@ -17,82 +17,86 @@
   (->> file-name
        common/read-file))
 
-(defn read-data
-  [file-name]
-  (->> (read-file file-name)
-       parsing-data))
-
 ; Logic
 
 (def init-operation
-  {:index         0
-   :acc-val       0
-   :visited       []
-   :second-visit? false
-   :replace-exit? false})
+  {:program-counter 0
+   :acc             0
+   :visited         []
+   :second-visit?   false
+   :replace-exit?   false})
 
 (defn get-action-number
-  [data index]
-  (let [[action number] (nth data index)]
+  [data program-counter]
+  (let [[action number] (nth data program-counter)]
     {:action action
      :number number}))
 
 (defn update-visited
-  [index operation]
-  (update operation :visited #(conj % index)))
+  [program-counter operation]
+  (update operation :visited #(conj % program-counter)))
 
 (defn update-nop
   [operation]
-  (update operation :index inc))
+  (update operation :program-counter inc))
 
 (defn update-acc
   [number operation]
   (update
-    (update operation :acc-val #(+ % number))
-    :index inc))
+    (update operation :acc #(+ % number))
+    :program-counter inc))
 
 (defn update-jmp
   [number operation]
-  (update operation :index #(+ % number)))
+  (update operation :program-counter #(+ % number)))
+
+(defn second-visit?
+  [visited]
+  (->> visited
+       frequencies
+       (some #(= (val %) 2))
+       true?))
 
 (defn update-second-visit
   [{:as operation :keys [visited]}]
-  (let [second-visit (->> visited
-                          frequencies
-                          vals
-                          (some #(= % 2)))]
-    (assoc operation :second-visit? second-visit)))
+  (assoc operation :second-visit? (second-visit? visited)))
+
+(defn replace-exit?
+  [data-size program-counter]
+  (or (< (dec data-size) program-counter)
+      (neg? program-counter)))
+
+(defn update-replace-exit
+  [data {:as operation :keys [program-counter]}]
+  (let [data-size (count data)]
+    (assoc operation :replace-exit? (replace-exit? data-size program-counter))))
 
 (defn execute-operation
-  [data {:as operation :keys [index]}]
-  (let [{:keys [action number]} (get-action-number data index)]
-    (-> (case action
-          :nop (->> operation
-                    (update-visited index)
-                    update-nop)
-          :acc (->> operation
-                    (update-visited index)
-                    (update-acc number))
-          :jmp (->> operation
-                    (update-visited index)
-                    (update-jmp number)))
-        update-second-visit)))
-
-(defn work
-  [data operation]
-  (->> operation
-       (execute-operation data)))
+  [data {:as operation :keys [program-counter]}]
+  (let [{:keys [action number]} (get-action-number data program-counter)]
+    (->> (case action
+           :nop (->> operation
+                     (update-visited program-counter)
+                     update-nop)
+           :acc (->> operation
+                     (update-visited program-counter)
+                     (update-acc number))
+           :jmp (->> operation
+                     (update-visited program-counter)
+                     (update-jmp number)))
+         update-second-visit
+         (update-replace-exit data))))
 
 (defn element-visit-twice?
   [{:keys [second-visit?]}]
   (not second-visit?))
 
 (defn modify-acc-val
-  [data {:keys [acc-val visited]}]
+  [data {:keys [acc visited]}]
   (let [{:keys [action number]} (get-action-number data (last visited))]
     (if (= action :acc)
-      (- acc-val number)
-      acc-val)))
+      (- acc number)
+      acc)))
 
 (defn part1
   [file-name]
@@ -100,14 +104,10 @@
                   read-file
                   parsing-data)]
     (->> init-operation
-         (iterate #(work data %))
+         (iterate #(execute-operation data %))
          (drop-while #(element-visit-twice? %))
          first
          (modify-acc-val data))))
-
-(comment
-  (part1 test-file)
-  (part1 real-file))
 
 ; Part 2
 
@@ -124,28 +124,33 @@
        (remove nil?)))
 
 (defn exit-when-value-changes?
-  [{:keys [replace-exit?]}]
-  (not replace-exit?))
+  [{:keys [second-visit? replace-exit?]}]
+  (and
+    (not replace-exit?)
+    (not second-visit?)))
 
 (defn part2-core
   [data]
-  (->> data
-       init-operation
-       (iterate #(work data %))
+  (->> init-operation
+       (iterate #(execute-operation data %))
        (drop-while #(exit-when-value-changes? %))
        first))
 
 (defn part2
   [file-name]
-  (let [data (->> file-name
-                  read-file
-                  parsing-data
-                  generate-exit-condition-candidate-data)]
-    (->> data
-         (map part2-core)
-         first
-         :acc-val)))
+  (->> file-name
+       read-file
+       parsing-data
+       generate-exit-condition-candidate-data
+       (map part2-core)
+       (filter :replace-exit?)
+       first
+       :acc))
 
 (comment
-  (part2 test-file)
-  (part2 real-file))
+  (part1 test-file) ; 5
+  (part1 real-file)) ; 1818
+
+(comment
+  (part2 test-file) ; 8
+  (part2 real-file)) ;631
